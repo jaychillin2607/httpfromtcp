@@ -1,0 +1,15 @@
+listening on port: :42069
+connection received &{{0x14000146080}}
+read: GET / HTTP/1.1
+read: Host: localhost:42069
+read: User-Agent: curl/8.7.1
+read: Accept: */*
+read: 
+
+connection received &{{0x14000078000}}
+read: GET / HTTP/1.1
+read: Host: localhost:42069
+read: User-Agent: curl/8.7.1
+read: Accept: */*
+read: 
+
