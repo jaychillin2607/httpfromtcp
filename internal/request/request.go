@@ -30,12 +30,12 @@ type RequestLine struct {
 
 type Request struct {
 	RequestLine RequestLine
-	Headers     *headers.Headers
+	Headers     headers.Headers
 	Body        []byte
 	State       parserState
 }
 
-func getInt(headers *headers.Headers, name string, defaultValue int) int {
+func getInt(headers headers.Headers, name string, defaultValue int) int {
 	str, exists := headers.Get(name)
 	if !exists {
 		return defaultValue
@@ -155,9 +155,6 @@ outer:
 			break outer
 
 		case StateDone:
-			if len(currentData) > 0 {
-				return 0, InvalidBodySizeError
-			}
 			break outer
 		default:
 			panic("somehow we have programmed poorly")
