@@ -4,15 +4,22 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"unicode"
+
+	"www.github.com/jaychillin2607/httpfromtcp/internal/headers"
 )
 
 type parserState string
 
+var InvalidBodySizeError = fmt.Errorf("body size is inconsistent to Conten-Length")
+
 const (
-	StateInit  parserState = "init"
-	StateDone  parserState = "done"
-	StateError parserState = "error"
+	StateInit    parserState = "init"
+	StateHeaders parserState = "headers"
+	StateBody    parserState = "body"
+	StateDone    parserState = "done"
+	StateError   parserState = "error"
 )
 
 type RequestLine struct {
@@ -23,12 +30,30 @@ type RequestLine struct {
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     *headers.Headers
+	Body        []byte
 	State       parserState
+}
+
+func getInt(headers *headers.Headers, name string, defaultValue int) int {
+	str, exists := headers.Get(name)
+	if !exists {
+		return defaultValue
+	}
+
+	intValue, err := strconv.Atoi(str)
+	if err != nil {
+		return defaultValue
+	}
+
+	return intValue
 }
 
 func newRequest() *Request {
 	return &Request{
-		State: StateInit,
+		State:   StateInit,
+		Headers: headers.NewHeaders(),
+		Body:    []byte{},
 	}
 }
 
@@ -74,12 +99,13 @@ func (r *Request) parse(data []byte) (int, error) {
 	read := 0
 outer:
 	for {
+		currentData := data[read:]
 		switch r.State {
 		case StateError:
 			return 0, ErrorRequestInErrorState
 
 		case StateInit:
-			rl, n, err := parseRequestLine(data[read:])
+			rl, n, err := parseRequestLine(currentData)
 			if err != nil {
 				r.State = StateError
 				return 0, err
@@ -90,11 +116,51 @@ outer:
 
 			r.RequestLine = *rl
 			read += n
-			r.State = StateDone
+			r.State = StateHeaders
+
+		case StateHeaders:
+			n, done, err := r.Headers.Parse(currentData)
+			if err != nil {
+				r.State = StateError
+				return 0, err
+			}
+
+			read += n
+
+			if n == 0 {
+				break outer
+			}
+
+			if done {
+				r.State = StateBody
+			}
+
+		case StateBody:
+			length := getInt(r.Headers, "content-length", 0)
+			if length == 0 {
+				r.State = StateDone
+				break
+			}
+
+			remaining := min(length-len(r.Body), len(currentData))
+			if remaining < len(currentData) {
+				return 0, InvalidBodySizeError
+			}
+
+			r.Body = append(r.Body, currentData[:remaining]...)
+			read += remaining
+			if len(r.Body) == length {
+				r.State = StateDone
+				break
+			}
+			break outer
 
 		case StateDone:
 			break outer
+		default:
+			panic("somehow we have programmed poorly")
 		}
+
 	}
 
 	return read, nil
@@ -110,18 +176,29 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 	buf := make([]byte, 1024)
 	bufLen := 0
-	for !request.done() {
+	for {
 		n, err := reader.Read(buf[bufLen:])
+		if request.done() && n != 0 {
+			return nil, InvalidBodySizeError
+		}
+		if err == io.EOF {
+			if request.done() {
+				break
+			} else {
+				return nil, InvalidBodySizeError
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
 
 		bufLen += n
-		readN, err := request.parse(buf[:bufLen+n])
+		readN, err := request.parse(buf[:bufLen])
 		if err != nil {
 			return nil, err
 		}
 		copy(buf, buf[readN:bufLen])
+
 		bufLen -= readN
 	}
 

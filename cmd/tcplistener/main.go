@@ -63,14 +63,22 @@ func main() {
 		go func(c net.Conn) {
 			defer conn.Close()
 
-			// for line := range getLinesChannel(conn) {
-			// 	fmt.Printf("read: %s\n", line)
-			// }
-
-			_, err := request.RequestFromReader(conn)
+			r, err := request.RequestFromReader(conn)
 			if err != nil {
 				log.Fatalf("Error while reading request: %v\n", err)
 			}
+
+			fmt.Printf(`Request line:
+- Method: %s
+- Target: %s
+- Version: %s
+Headers:
+`, r.RequestLine.Method, r.RequestLine.RequestTarget, r.RequestLine.HttpVersion)
+			r.Headers.ForEach(
+				func(k, v string) {
+					fmt.Printf("- %s: %s\n", k, v)
+				},
+			)
 		}(conn)
 	}
 }
