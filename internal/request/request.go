@@ -151,11 +151,13 @@ outer:
 			read += remaining
 			if len(r.Body) == length {
 				r.State = StateDone
-				break
 			}
 			break outer
 
 		case StateDone:
+			if len(currentData) > 0 {
+				return 0, InvalidBodySizeError
+			}
 			break outer
 		default:
 			panic("somehow we have programmed poorly")
@@ -176,15 +178,10 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 	buf := make([]byte, 1024)
 	bufLen := 0
-	for {
+	for !request.done() {
 		n, err := reader.Read(buf[bufLen:])
-		if request.done() && n != 0 {
-			return nil, InvalidBodySizeError
-		}
 		if err == io.EOF {
-			if request.done() {
-				break
-			} else {
+			if n == 0 {
 				return nil, InvalidBodySizeError
 			}
 		}

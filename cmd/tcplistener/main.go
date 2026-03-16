@@ -68,17 +68,17 @@ func main() {
 				log.Fatalf("Error while reading request: %v\n", err)
 			}
 
-			fmt.Printf(`Request line:
-- Method: %s
-- Target: %s
-- Version: %s
-Headers:
-`, r.RequestLine.Method, r.RequestLine.RequestTarget, r.RequestLine.HttpVersion)
+			fmt.Println("Request line:")
+			fmt.Printf("- Method: %s\n", r.RequestLine.Method)
+			fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
+			fmt.Printf("- Version: %s\n", r.RequestLine.HttpVersion)
+			fmt.Println("Headers:")
 			r.Headers.ForEach(
 				func(k, v string) {
 					fmt.Printf("- %s: %s\n", k, v)
 				},
 			)
+			fmt.Println(string(r.Body))
 		}(conn)
 	}
 }
